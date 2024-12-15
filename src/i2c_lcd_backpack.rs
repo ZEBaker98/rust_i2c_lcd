@@ -1,6 +1,5 @@
-use embedded_hal::i2c::I2c;
 use embedded_hal::delay::DelayNs;
-use lcd;
+use embedded_hal::i2c::I2c;
 
 pub struct Mcp23008<I2C> {
     address: u8,
@@ -77,11 +76,15 @@ impl<I2C: I2c, D: DelayNs> LCDBackpack<I2C, D> {
 
 impl<I2C: I2c, D: DelayNs> lcd::Hardware for LCDBackpack<I2C, D> {
     fn rs(&mut self, bit: bool) {
-        self.mcp23008.io_set_masked((bit as u8) << 1, 0x1 << 1).unwrap();
+        self.mcp23008
+            .io_set_masked((bit as u8) << 1, 0x1 << 1)
+            .unwrap();
     }
 
     fn enable(&mut self, bit: bool) {
-        self.mcp23008.io_set_masked((bit as u8) << 2, 0x1 << 2).unwrap();
+        self.mcp23008
+            .io_set_masked((bit as u8) << 2, 0x1 << 2)
+            .unwrap();
     }
 
     fn data(&mut self, data: u8) {

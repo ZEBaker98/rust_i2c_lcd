@@ -36,12 +36,21 @@ mod app {
 
     const XTAL_FREQ_HZ: u32 = 12_000_000;
 
+    type I2CBus = rp2040_hal::I2C<
+        rp2040_pac::I2C1,
+        (
+            gpio::Pin<bank0::Gpio2, gpio::FunctionI2c, PullUp>,
+            gpio::Pin<bank0::Gpio3, gpio::FunctionI2c, PullUp>,
+        ),
+    >;
+
     #[shared]
-    struct Shared {}
+    struct Shared {
+        lcd: Display<LCDBackpack<I2CBus, Mono>>,
+    }
 
     #[local]
     struct Local {
-        lcd: Display<LCDBackpack<rp2040_hal::I2C<rp2040_pac::I2C1, (gpio::Pin<bank0::Gpio2, gpio::FunctionI2c, PullUp>, gpio::Pin<bank0::Gpio3, gpio::FunctionI2c, PullUp>)>, Mono>>,
         led: gpio::Pin<bank0::Gpio13, FunctionSio<SioOutput>, PullDown>,
         neopixel: ws2812_pio::Ws2812Direct<
             pac::PIO0,
@@ -94,22 +103,24 @@ mod app {
             ctx.device.I2C1,
             pins.gpio2.reconfigure(),
             pins.gpio3.reconfigure(),
-            400.kHz(),
+            1.MHz(),
             &mut ctx.device.RESETS,
             clocks.system_clock.freq(),
         );
 
         // Init LCD
-        let mut lcd = Display::new(
-            LCDBackpack::new(
-                Mcp23008::new(i2c, 0x20),
-                Mono
-            )
-        );
+        let mut lcd = Display::new(LCDBackpack::new(Mcp23008::new(i2c, 0x20), Mono));
         lcd.init(lcd::FunctionLine::Line2, lcd::FunctionDots::Dots5x8);
-        lcd.display(lcd::DisplayMode::DisplayOn, lcd::DisplayCursor::CursorOff, lcd::DisplayBlink::BlinkOff);
+        lcd.display(
+            lcd::DisplayMode::DisplayOn,
+            lcd::DisplayCursor::CursorOff,
+            lcd::DisplayBlink::BlinkOff,
+        );
         lcd.clear();
-        lcd.entry_mode(lcd::EntryModeDirection::EntryRight, lcd::EntryModeShift::NoShift);
+        lcd.entry_mode(
+            lcd::EntryModeDirection::EntryRight,
+            lcd::EntryModeShift::NoShift,
+        );
 
         lcd.position(0, 0);
         lcd.write_str("Hello world!").unwrap();
@@ -122,7 +133,7 @@ mod app {
         ctx.core.SCB.set_sleeponexit();
 
         // Return resources and timer
-        (Shared {}, Local { lcd, led, neopixel })
+        (Shared { lcd }, Local { led, neopixel })
     }
 
     #[idle()]
@@ -132,16 +143,31 @@ mod app {
         }
     }
 
-    #[task(local = [led], priority = 2)]
-    async fn heartbeat(ctx: heartbeat::Context) {
+    #[task(shared = [lcd], local = [led], priority = 2)]
+    async fn heartbeat(mut ctx: heartbeat::Context) {
         use embedded_hal::digital::StatefulOutputPin;
         loop {
             ctx.local.led.toggle().unwrap();
+
+            ctx.shared.lcd.lock(|lcd| {
+                lcd.position(0, 1);
+                write!(
+                    lcd,
+                    "LED: {}",
+                    if ctx.local.led.is_set_high().unwrap() {
+                        "On "
+                    } else {
+                        "Off"
+                    }
+                )
+                .unwrap();
+            });
+
             Mono::delay(1000.millis()).await;
         }
     }
 
-    #[task(local = [lcd, neopixel], priority = 1)]
+    #[task(shared = [lcd], local = [neopixel], priority = 1)]
     async fn rainbow(mut ctx: rainbow::Context) {
         use smart_leds::{
             hsv::{hsv2rgb, Hsv},
@@ -155,12 +181,11 @@ mod app {
         loop {
             let rgb = hsv2rgb(hsv);
             ctx.local.neopixel.write([rgb].iter().copied()).unwrap();
-            
-            ctx.local.lcd.position(0, 1);
-            write!(&mut ctx.local.lcd, "H {:3} S {:3} V {:3}", hsv.hue, hsv.sat, hsv.val).unwrap();
 
-            ctx.local.lcd.position(0, 2);
-            write!(&mut ctx.local.lcd, "R {:3} G {:3} B {:3}", rgb.r, rgb.g, rgb.b).unwrap();
+            ctx.shared.lcd.lock(|lcd| {
+                lcd.position(0, 2);
+                write!(lcd, "R {:3} G {:3} B {:3}", rgb.r, rgb.g, rgb.b).unwrap();
+            });
 
             Mono::delay(100.millis()).await;
             hsv.hue = hsv.hue.wrapping_add(1);
