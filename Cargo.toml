@@ -1,0 +1,34 @@
+[package]
+name = "i2c-lcd"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cortex-m = { version = "0.7.7", features = ["critical-section"] }
+defmt = { version = "0.3.8", optional = true }
+defmt-rtt = { version = "0.4.1", optional = true }
+embedded-hal = "1.0.0"
+embedded_hal_0_2 = {package = "embedded-hal", version = "0.2.5", features = ["unproven"]}
+embedded-hal-bus = "0.2.0"
+lcd = "0.4.1"
+panic-probe = { version = "0.3.2"}
+portable-atomic = { version = "1.6.0", features = ["critical-section"] }
+rfm69 = "0.6.0"
+rp2040-boot2 = "0.3.0"
+rp2040-hal = { version = "0.10.2", features = ["rt", "rtic-monotonic", "defmt", "critical-section-impl"] }
+rp2040-pac = { version = "0.6.0", features = ["rt"] }
+rtic = { version = "2.1.1", features = ["cortex-m", "thumbv6-backend"] }
+rtic-monotonics = { version = "2.0.2", features = ["rp2040"] }
+rtic-sync = "1.3.0"
+smart-leds = "0.3.0"
+ws2812-pio = "0.8.0"
+heapless = "0.8.0"
+
+[profile.release]
+debug = 2
+
+[features]
+# default = ["rtt"]
+rtt = ["dep:defmt", "dep:defmt-rtt", "panic-probe/print-defmt"]
