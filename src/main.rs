@@ -142,35 +142,27 @@ mod app {
     }
 
     #[task(local = [lcd, neopixel], priority = 1)]
-    async fn rainbow(ctx: rainbow::Context) {
+    async fn rainbow(mut ctx: rainbow::Context) {
         use smart_leds::{
             hsv::{hsv2rgb, Hsv},
             SmartLedsWrite,
         };
-        use heapless::String;
         let mut hsv = Hsv {
             hue: 0,
             sat: 230,
             val: 40,
         };
-        let mut buffer: String<20> = String::new();
         loop {
             let rgb = hsv2rgb(hsv);
             ctx.local.neopixel.write([rgb].iter().copied()).unwrap();
             
-            if hsv.hue % 4 == 0 {
-                buffer.clear();
-                write!(buffer, "H {:3} S {:3} V {:3}", hsv.hue, hsv.sat, hsv.val).unwrap();
-                ctx.local.lcd.position(0, 1);
-                ctx.local.lcd.write_str(&buffer).unwrap();
+            ctx.local.lcd.position(0, 1);
+            write!(&mut ctx.local.lcd, "H {:3} S {:3} V {:3}", hsv.hue, hsv.sat, hsv.val).unwrap();
 
-                buffer.clear();
-                write!(buffer, "R {:3} G {:3} B {:3}", rgb.r, rgb.g, rgb.b).unwrap();
-                ctx.local.lcd.position(0, 2);
-                ctx.local.lcd.write_str(&buffer).unwrap();
-            }
+            ctx.local.lcd.position(0, 2);
+            write!(&mut ctx.local.lcd, "R {:3} G {:3} B {:3}", rgb.r, rgb.g, rgb.b).unwrap();
 
-            Mono::delay(20.millis()).await;
+            Mono::delay(100.millis()).await;
             hsv.hue = hsv.hue.wrapping_add(1);
         }
     }
